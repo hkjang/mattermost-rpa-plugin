@@ -149,6 +149,28 @@ func TestIsEligibleForAnalysisAllowsBotDirectRequest(t *testing.T) {
 	require.True(t, eligible)
 }
 
+func TestBuildMessageDetailsUsesBotTargetName(t *testing.T) {
+	runtimeCfg, err := defaultStoredPluginConfig().normalize()
+	require.NoError(t, err)
+
+	rows := buildMessageDetails([]analyzedMessageRecord{
+		{
+			MessageID:         "msg-1",
+			CreatedAt:         time.Now().UnixMilli(),
+			IsBotRequest:      true,
+			BotTargetName:     "mattermostbot",
+			AuthorDisplayName: "alice",
+			AuthorUserID:      "user-1",
+			MessagePreview:    "dns 설정 방법 알려줘",
+			UrgencyScore:      35,
+			Sentiment:         "neutral",
+		},
+	}, runtimeCfg)
+
+	require.Len(t, rows, 1)
+	require.Equal(t, "mattermostbot", rows[0].BotTargetName)
+}
+
 func TestBuildStatsRange(t *testing.T) {
 	rangeValue, fromUTC, toUTC, err := buildStatsRange("2026-03-20", "2026-03-21", 540)
 	require.NoError(t, err)

@@ -58,6 +58,7 @@ func (p *Plugin) initRouter() *mux.Router {
 	apiRouter.HandleFunc("/config", p.handleAdminConfig).Methods(http.MethodGet)
 	apiRouter.HandleFunc("/status", p.handleStatus).Methods(http.MethodGet)
 	apiRouter.HandleFunc("/stats", p.handleStats).Methods(http.MethodGet)
+	apiRouter.HandleFunc("/ai/summary", p.handleAISummary).Methods(http.MethodPost)
 	apiRouter.HandleFunc("/reindex", p.handleReindex).Methods(http.MethodPost)
 	apiRouter.HandleFunc("/report", p.handleReport).Methods(http.MethodGet)
 	return router
@@ -148,6 +149,42 @@ func (p *Plugin) handleReindex(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func (p *Plugin) handleAISummary(w http.ResponseWriter, r *http.Request) {
+	if err := p.requireSystemAdmin(r); err != nil {
+		writeError(w, http.StatusForbidden, err)
+		return
+	}
+
+	var request aiSummaryRequest
+	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+		writeError(w, http.StatusBadRequest, err)
+		return
+	}
+
+	if strings.TrimSpace(request.FromDate) == "" || strings.TrimSpace(request.ToDate) == "" {
+		today := formatLocalDate(time.Now().UTC(), request.TimezoneOffsetMinutes)
+		if strings.TrimSpace(request.FromDate) == "" {
+			request.FromDate = today
+		}
+		if strings.TrimSpace(request.ToDate) == "" {
+			request.ToDate = today
+		}
+	}
+
+	response, err := p.generateAISummary(request)
+	if err != nil {
+		statusCode := http.StatusBadRequest
+		lowered := strings.ToLower(err.Error())
+		if strings.Contains(lowered, "vllm returned") || strings.Contains(lowered, "vllm 호출") || strings.Contains(lowered, "vllm error") {
+			statusCode = http.StatusBadGateway
+		}
+		writeError(w, statusCode, err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
 func (p *Plugin) handleReport(w http.ResponseWriter, r *http.Request) {
 	if err := p.requireSystemAdmin(r); err != nil {
 		writeError(w, http.StatusForbidden, err)
@@ -178,7 +215,7 @@ func (p *Plugin) handleReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	filename := fmt.Sprintf("it-dialog-analysis-%s-%s", fromDate, toDate)
+	filename := fmt.Sprintf("rpa-dialog-analysis-%s-%s", fromDate, toDate)
 	switch format {
 	case "json", "":
 		payload, marshalErr := buildReportJSON(stats)

@@ -1,7 +1,7 @@
 import React, {useEffect, useMemo, useRef, useState} from 'react';
 
-import type {AdminLookupCatalog, AdminPluginConfig, AlertRule, PluginStatus, StatsResponse} from '../client';
-import {buildReportURL, getAdminConfig, getStats, startReindex} from '../client';
+import type {AISummaryResponse, AdminLookupCatalog, AdminPluginConfig, AlertRule, PluginStatus, StatsResponse} from '../client';
+import {buildReportURL, generateAISummary, getAdminConfig, getStats, startReindex} from '../client';
 
 type CustomSettingProps = {
     id?: string;
@@ -42,6 +42,9 @@ export default function ConfigSetting(props: CustomSettingProps) {
     const [channelFilter, setChannelFilter] = useState('');
     const [reindexing, setReindexing] = useState(false);
     const [reindexMessage, setReindexMessage] = useState('');
+    const [aiSummary, setAiSummary] = useState<AISummaryResponse | null>(null);
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiError, setAiError] = useState('');
     const lastSubmittedValueRef = useRef('');
     const configRef = useRef(config);
 
@@ -113,6 +116,11 @@ export default function ConfigSetting(props: CustomSettingProps) {
         };
     }, [range.fromDate, range.toDate, timezoneOffsetMinutes, keywordFilter, categoryFilter, channelFilter]);
 
+    useEffect(() => {
+        setAiSummary(null);
+        setAiError('');
+    }, [range.fromDate, range.toDate, keywordFilter, categoryFilter, channelFilter]);
+
     const validationMessages = useMemo(() => validateConfig(config), [config]);
 
     const applyConfig = (nextConfig: DraftPluginConfig) => {
@@ -129,6 +137,7 @@ export default function ConfigSetting(props: CustomSettingProps) {
     const updateAI = (key: keyof AdminPluginConfig['ai'], value: string) => update({ai: {...config.ai, [key]: value}});
 
     const openReport = (format: 'json'|'csv') => window.open(buildReportURL({format, fromDate: range.fromDate, toDate: range.toDate, timezoneOffsetMinutes, keyword: keywordFilter || undefined, majorCategory: categoryFilter || undefined, channelID: channelFilter || undefined}), '_blank', 'noopener,noreferrer');
+    const aiConfigured = Boolean(config.ai.vllm_url && config.ai.vllm_key && config.ai.vllm_model);
 
     const runReindex = async () => {
         setReindexing(true);
@@ -140,6 +149,26 @@ export default function ConfigSetting(props: CustomSettingProps) {
             setReindexMessage(error instanceof Error ? error.message : '재색인 실패');
         } finally {
             setReindexing(false);
+        }
+    };
+
+    const runAISummary = async () => {
+        setAiLoading(true);
+        setAiError('');
+        try {
+            const result = await generateAISummary({
+                fromDate: range.fromDate,
+                toDate: range.toDate,
+                timezoneOffsetMinutes,
+                keyword: keywordFilter || undefined,
+                majorCategory: categoryFilter || undefined,
+                channelID: channelFilter || undefined,
+            });
+            setAiSummary(result);
+        } catch (error) {
+            setAiError(error instanceof Error ? error.message : 'AI 요약 생성 실패');
+        } finally {
+            setAiLoading(false);
         }
     };
 
@@ -213,7 +242,36 @@ export default function ConfigSetting(props: CustomSettingProps) {
                 <div style={{fontSize: 18, fontWeight: 700}}>핫토픽 / 알림 / 메시지 상세</div>
                 <SimpleTable headers={['키워드', '현재', '이전', '증가']} rows={(stats?.hot_topics || []).map((item) => [item.keyword, String(item.count), String(item.previous_count), String(item.delta)])}/>
                 <SimpleTable headers={['알림', '상태', '현재', '기준']} rows={(stats?.alerts || []).map((item) => [item.name, item.status, String(item.count), String(item.threshold)])}/>
-                <SimpleTable headers={['채널', '사용자', '긴급도', '본문']} rows={(stats?.messages || []).map((item) => [`${item.team_name || '-'} / ${item.channel_name}`, item.author_display_name || '-', item.urgency_score.toFixed(0), item.preview])}/>
+                <SimpleTable headers={['봇', '사용자', '긴급도', '본문']} rows={(stats?.messages || []).map((item) => [item.bot_target_name || '-', item.author_display_name || '-', item.urgency_score.toFixed(0), item.preview])}/>
+            </section>
+
+            <section style={sectionStyle}>
+                <div style={{fontSize: 18, fontWeight: 700}}>AI 운영 요약</div>
+                <div style={{color: 'rgba(63,67,80,.72)', fontSize: 12, lineHeight: 1.6}}>
+                    현재 화면의 기간, 키워드, 분류, 채널 필터를 그대로 사용해 vLLM으로 운영 요약을 생성합니다.
+                    상위 키워드, 핫토픽, 알림, 추세, 최근 관련 메시지, 최근 봇 요청 메시지를 함께 보내며 작성자 이름은 외부 호출 데이터에 포함하지 않습니다.
+                </div>
+                <div style={{display: 'flex', flexWrap: 'wrap', gap: 10}}>
+                    <button disabled={!aiConfigured || aiLoading} style={buttonStyle} type='button' onClick={runAISummary}>{aiLoading ? 'AI 요약 생성 중...' : 'AI 요약 생성'}</button>
+                    <Pill text={`범위 ${range.fromDate} ~ ${range.toDate}`}/>
+                    {aiSummary ? <Pill text={`모델 ${aiSummary.model}`}/> : null}
+                    {aiSummary ? <Pill text={`근거 메시지 ${aiSummary.source_message_count}`}/> : null}
+                    {aiSummary ? <Pill text={`봇 요청 ${aiSummary.bot_request_count}`}/> : null}
+                </div>
+                {!aiConfigured ? <div style={{color: 'rgba(63,67,80,.72)', fontSize: 12}}>vLLM URL, API Key, 모델명을 모두 저장하면 생성 버튼이 활성화됩니다.</div> : null}
+                {aiError ? <div style={{color: 'var(--error-text)'}}>{aiError}</div> : null}
+                {aiSummary ? (
+                    <div style={{display: 'grid', gap: 12}}>
+                        <div style={{background: 'rgba(13,110,253,.05)', borderRadius: 14, padding: 14}}>
+                            <div style={{fontSize: 12, fontWeight: 700, marginBottom: 8}}>요약</div>
+                            <div style={{lineHeight: 1.7, whiteSpace: 'pre-wrap'}}>{aiSummary.summary}</div>
+                        </div>
+                        <SummaryList title='핵심 변화' items={aiSummary.highlights}/>
+                        <SummaryList title='리스크' items={aiSummary.risks}/>
+                        <SummaryList title='권장 조치' items={aiSummary.recommended_actions}/>
+                        <SummaryList title='추가 관찰 포인트' items={aiSummary.watchouts}/>
+                    </div>
+                ) : null}
             </section>
 
             <section style={sectionStyle}>
@@ -237,12 +295,15 @@ export default function ConfigSetting(props: CustomSettingProps) {
                     <Num label='재색인 배치 크기' value={config.operations.reindex_batch_size} onChange={(value) => updateOps('reindex_batch_size', value)}/>
                     <Check label='작성자 익명화' checked={config.operations.anonymize_authors} onChange={(value) => updateOps('anonymize_authors', value)}/>
                     <Text label='vLLM API URL' value={config.ai.vllm_url} onChange={(value) => updateAI('vllm_url', value)}/>
-                    <Text label='vLLM API Key' value={config.ai.vllm_key} onChange={(value) => updateAI('vllm_key', value)}/>
+                    <Text label='vLLM API Key' type='password' value={config.ai.vllm_key} onChange={(value) => updateAI('vllm_key', value)}/>
                     <Text label='vLLM 모델명' value={config.ai.vllm_model} onChange={(value) => updateAI('vllm_model', value)}/>
                 </div>
                 <div style={{color: 'rgba(63,67,80,.72)', fontSize: 12, lineHeight: 1.6}}>
-                    vLLM 설정을 모두 채우면 향후 일간 이슈 요약, 주간 운영 리포트 생성, 급상승 키워드 요약, 반복 문의 묶음 설명, 장애 후보 원인 정리 같은 AI 기능을 같은 모델 기준으로 호출할 수 있습니다.
-                    URL은 OpenAI 호환 엔드포인트, API Key는 인증 토큰, 모델명은 실제 호출할 `model` 값으로 사용됩니다.
+                    vLLM 설정을 모두 채우면 바로 위의 AI 운영 요약 기능이 활성화됩니다.
+                    현재 선택한 기간과 필터를 기준으로 상위 키워드, 급상승 주제, 알림 상태, 최근 관련 메시지, 최근 봇 요청을 묶어 요약합니다.
+                    결과는 `요약`, `핵심 변화`, `리스크`, `권장 조치`, `추가 관찰 포인트`로 나뉘며 작성자 이름은 외부 호출 데이터에 포함하지 않습니다.
+                    vLLM 값을 변경한 뒤에는 Mattermost 설정 저장을 한 번 눌러야 서버 호출에 새 값이 반영됩니다.
+                    URL은 OpenAI 호환 엔드포인트, API Key는 인증 토큰, 모델명은 실제 `model` 필드 값입니다.
                     예시는 `http://vllm.internal:8000/v1`, 키는 서비스 토큰, 모델명은 `Qwen/Qwen2.5-14B-Instruct` 같은 형식입니다.
                 </div>
             </section>
@@ -262,8 +323,23 @@ function SimpleTable(props: {headers: string[]; rows: string[][]}) {
     return <div style={{overflowX: 'auto'}}><table style={{borderCollapse: 'collapse', width: '100%'}}><thead><tr>{props.headers.map((header) => <th key={header} style={{borderBottom: '1px solid rgba(63,67,80,.08)', fontSize: 12, padding: '8px 10px', textAlign: 'left'}}>{header}</th>)}</tr></thead><tbody>{props.rows.map((row, i) => <tr key={i}>{row.map((cell, j) => <td key={`${i}-${j}`} style={{borderBottom: '1px solid rgba(63,67,80,.08)', fontSize: 13, padding: '10px'}}>{cell}</td>)}</tr>)}</tbody></table></div>;
 }
 
-function Text(props: {label: string; value: string; onChange: (value: string) => void}) {
-    return <label><div>{props.label}</div><input style={{...fieldStyle, marginTop: 8}} type='text' value={props.value} onChange={(e) => props.onChange(e.target.value)}/></label>;
+function SummaryList(props: {title: string; items: string[]}) {
+    if (!props.items.length) {
+        return null;
+    }
+
+    return (
+        <div style={{background: 'rgba(25,32,56,.04)', borderRadius: 14, padding: 14}}>
+            <div style={{fontSize: 12, fontWeight: 700, marginBottom: 8}}>{props.title}</div>
+            <ul style={{margin: 0, paddingLeft: 18}}>
+                {props.items.map((item) => <li key={`${props.title}-${item}`} style={{lineHeight: 1.6, marginBottom: 6}}>{item}</li>)}
+            </ul>
+        </div>
+    );
+}
+
+function Text(props: {label: string; value: string; type?: 'text'|'password'; onChange: (value: string) => void}) {
+    return <label><div>{props.label}</div><input style={{...fieldStyle, marginTop: 8}} type={props.type || 'text'} value={props.value} onChange={(e) => props.onChange(e.target.value)}/></label>;
 }
 
 function Num(props: {label: string; value: number; onChange: (value: number) => void}) {

@@ -68,6 +68,7 @@ type trendPoint struct {
 type messageDetail struct {
 	MessageID         string         `json:"message_id"`
 	CreatedAt         int64          `json:"created_at"`
+	BotTargetName     string         `json:"bot_target_name,omitempty"`
 	ChannelID         string         `json:"channel_id"`
 	ChannelName       string         `json:"channel_name"`
 	TeamName          string         `json:"team_name"`
@@ -602,6 +603,7 @@ func buildMessageDetails(records []analyzedMessageRecord, runtimeCfg *runtimeCon
 		rows = append(rows, messageDetail{
 			MessageID:         record.MessageID,
 			CreatedAt:         record.CreatedAt,
+			BotTargetName:     firstNonEmpty(record.BotTargetName, "bot"),
 			ChannelID:         record.ChannelID,
 			ChannelName:       firstNonEmpty(record.ChannelDisplayName, record.ChannelName),
 			TeamName:          record.TeamName,

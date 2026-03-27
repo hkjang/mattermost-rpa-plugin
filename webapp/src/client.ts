@@ -164,6 +164,7 @@ export type TrendPoint = {
 export type MessageDetail = {
     message_id: string;
     created_at: number;
+    bot_target_name?: string;
     channel_id: string;
     channel_name: string;
     team_name: string;
@@ -227,6 +228,28 @@ export type ReindexResponse = {
     from_date: string;
     to_date: string;
     completed_at: number;
+};
+
+export type AISummaryResponse = {
+    range: {
+        from_date: string;
+        to_date: string;
+        timezone_offset_minutes: number;
+    };
+    filter: {
+        keyword?: string;
+        major_category?: string;
+        channel_id?: string;
+    };
+    model: string;
+    generated_at: number;
+    source_message_count: number;
+    bot_request_count: number;
+    summary: string;
+    highlights: string[];
+    risks: string[];
+    recommended_actions: string[];
+    watchouts: string[];
 };
 
 export function setSiteURL(value: string) {
@@ -326,6 +349,27 @@ export async function startReindex(payload: {
             to_date: payload.toDate,
             timezone_offset_minutes: payload.timezoneOffsetMinutes,
             channel_ids: payload.channelIDs || [],
+        }),
+    });
+}
+
+export async function generateAISummary(payload: {
+    fromDate: string;
+    toDate: string;
+    timezoneOffsetMinutes: number;
+    keyword?: string;
+    majorCategory?: string;
+    channelID?: string;
+}) {
+    return request<AISummaryResponse>('/ai/summary', {
+        method: 'POST',
+        body: JSON.stringify({
+            from_date: payload.fromDate,
+            to_date: payload.toDate,
+            timezone_offset_minutes: payload.timezoneOffsetMinutes,
+            keyword: payload.keyword || '',
+            major_category: payload.majorCategory || '',
+            channel_id: payload.channelID || '',
         }),
     });
 }
