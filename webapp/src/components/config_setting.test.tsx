@@ -41,6 +41,7 @@ describe('config setting drafts', () => {
             ai: {
                 vllm_url: '',
                 vllm_key: '',
+                vllm_model: '',
             },
         };
 
@@ -108,6 +109,7 @@ describe('config setting drafts', () => {
             ai: {
                 vllm_url: '',
                 vllm_key: '',
+                vllm_model: '',
             },
         }));
 

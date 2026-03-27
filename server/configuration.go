@@ -63,8 +63,9 @@ type AlertRule struct {
 }
 
 type AISettings struct {
-	VLLMURL string `json:"vllm_url"`
-	VLLMKey string `json:"vllm_key"`
+	VLLMURL   string `json:"vllm_url"`
+	VLLMKey   string `json:"vllm_key"`
+	VLLMModel string `json:"vllm_model"`
 }
 
 type storedPluginConfig struct {
@@ -197,8 +198,9 @@ func (c storedPluginConfig) normalize() (*runtimeConfiguration, error) {
 		Stopwords:    sliceToSet(stopwords),
 		AlertRules:   alertRules,
 		AI: AISettings{
-			VLLMURL: strings.TrimSpace(c.AI.VLLMURL),
-			VLLMKey: strings.TrimSpace(c.AI.VLLMKey),
+			VLLMURL:   strings.TrimSpace(c.AI.VLLMURL),
+			VLLMKey:   strings.TrimSpace(c.AI.VLLMKey),
+			VLLMModel: strings.TrimSpace(c.AI.VLLMModel),
 		},
 	}
 	cfg.CompiledLookup = compileKeywordLookup(cfg.Dictionaries)

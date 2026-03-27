@@ -52,6 +52,7 @@ export type AlertRule = {
 export type AISettings = {
     vllm_url: string;
     vllm_key: string;
+    vllm_model: string;
 };
 
 export type TeamOption = {

@@ -213,7 +213,7 @@ export default function ConfigSetting(props: CustomSettingProps) {
                 <div style={{fontSize: 18, fontWeight: 700}}>핫토픽 / 알림 / 메시지 상세</div>
                 <SimpleTable headers={['키워드', '현재', '이전', '증가']} rows={(stats?.hot_topics || []).map((item) => [item.keyword, String(item.count), String(item.previous_count), String(item.delta)])}/>
                 <SimpleTable headers={['알림', '상태', '현재', '기준']} rows={(stats?.alerts || []).map((item) => [item.name, item.status, String(item.count), String(item.threshold)])}/>
-                <SimpleTable headers={['긴급도', '본문']} rows={(stats?.messages || []).map((item) => [item.urgency_score.toFixed(0), item.preview])}/>
+                <SimpleTable headers={['채널', '사용자', '긴급도', '본문']} rows={(stats?.messages || []).map((item) => [`${item.team_name || '-'} / ${item.channel_name}`, item.author_display_name || '-', item.urgency_score.toFixed(0), item.preview])}/>
             </section>
 
             <section style={sectionStyle}>
@@ -236,6 +236,12 @@ export default function ConfigSetting(props: CustomSettingProps) {
                     <Check label='작성자 익명화' checked={config.operations.anonymize_authors} onChange={(value) => updateOps('anonymize_authors', value)}/>
                     <Text label='vLLM API URL' value={config.ai.vllm_url} onChange={(value) => updateAI('vllm_url', value)}/>
                     <Text label='vLLM API Key' value={config.ai.vllm_key} onChange={(value) => updateAI('vllm_key', value)}/>
+                    <Text label='vLLM 모델명' value={config.ai.vllm_model} onChange={(value) => updateAI('vllm_model', value)}/>
+                </div>
+                <div style={{color: 'rgba(63,67,80,.72)', fontSize: 12, lineHeight: 1.6}}>
+                    vLLM 설정을 모두 채우면 향후 일간 이슈 요약, 주간 운영 리포트 생성, 급상승 키워드 요약, 반복 문의 묶음 설명, 장애 후보 원인 정리 같은 AI 기능을 같은 모델 기준으로 호출할 수 있습니다.
+                    URL은 OpenAI 호환 엔드포인트, API Key는 인증 토큰, 모델명은 실제 호출할 `model` 값으로 사용됩니다.
+                    예시는 `http://vllm.internal:8000/v1`, 키는 서비스 토큰, 모델명은 `Qwen/Qwen2.5-14B-Instruct` 같은 형식입니다.
                 </div>
             </section>
         </div>
@@ -297,6 +303,7 @@ function createDefaultConfig(): DraftPluginConfig {
         ai: {
             vllm_url: '',
             vllm_key: '',
+            vllm_model: '',
         },
     };
 }
