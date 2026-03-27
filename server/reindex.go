@@ -85,14 +85,14 @@ func (p *Plugin) runReindex(userID string, request reindexRequest) (reindexRespo
 				}
 			}
 
-			if !isEligibleForAnalysis(post, channel, user, runtimeCfg) {
+			isBotRequest, botTargetName := p.detectBotRequest(post, channel, user)
+			if !isEligibleForAnalysis(post, channel, user, runtimeCfg, isBotRequest) {
 				p.analyticsLock.Lock()
 				_ = p.removeMessageRecordLocked(post.Id, createdAt)
 				p.analyticsLock.Unlock()
 				continue
 			}
 
-			isBotRequest, botTargetName := p.detectBotRequest(post, channel, user)
 			record, ok := analyzePostRecord(post, channel, user, team, runtimeCfg, isBotRequest, botTargetName)
 			p.analyticsLock.Lock()
 			if ok {

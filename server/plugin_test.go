@@ -129,6 +129,26 @@ func TestExtractMentionedUsernamesSkipsReservedMentions(t *testing.T) {
 	require.Equal(t, []string{"mattermostbot", "helper.bot"}, usernames)
 }
 
+func TestIsEligibleForAnalysisAllowsBotDirectRequest(t *testing.T) {
+	runtimeCfg, err := defaultStoredPluginConfig().normalize()
+	require.NoError(t, err)
+	require.False(t, runtimeCfg.Scope.IncludeDirectChan)
+
+	eligible := isEligibleForAnalysis(
+		&model.Post{
+			Id:        "post-dm",
+			Message:   "dns 설정 방법 알려줘",
+			ChannelId: "dm-1",
+			CreateAt:  time.Now().UnixMilli(),
+		},
+		&model.Channel{Id: "dm-1", Name: "bot-user__user-1", Type: model.ChannelTypeDirect},
+		mockUser("user-1", "alice", false),
+		runtimeCfg,
+		true,
+	)
+	require.True(t, eligible)
+}
+
 func TestBuildStatsRange(t *testing.T) {
 	rangeValue, fromUTC, toUTC, err := buildStatsRange("2026-03-20", "2026-03-21", 540)
 	require.NoError(t, err)

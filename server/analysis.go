@@ -73,10 +73,13 @@ func (p *Plugin) processPostUpsert(post *model.Post) {
 		return
 	}
 
-	channel, user, team, eligible, err := p.prepareAnalysisContext(post, runtimeCfg)
+	channel, user, team, err := p.prepareAnalysisContext(post)
 	if err != nil {
 		return
 	}
+
+	isBotRequest, botTargetName := p.detectBotRequest(post, channel, user)
+	eligible := isEligibleForAnalysis(post, channel, user, runtimeCfg, isBotRequest)
 
 	p.analyticsLock.Lock()
 	defer p.analyticsLock.Unlock()
@@ -86,7 +89,6 @@ func (p *Plugin) processPostUpsert(post *model.Post) {
 		return
 	}
 
-	isBotRequest, botTargetName := p.detectBotRequest(post, channel, user)
 	record, ok := analyzePostRecord(post, channel, user, team, runtimeCfg, isBotRequest, botTargetName)
 	if !ok {
 		_ = p.removeMessageRecordLocked(post.Id, time.UnixMilli(post.CreateAt))
@@ -108,15 +110,15 @@ func (p *Plugin) processPostDeletion(post *model.Post) {
 	_ = p.removeMessageRecordLocked(post.Id, time.UnixMilli(post.CreateAt))
 }
 
-func (p *Plugin) prepareAnalysisContext(post *model.Post, runtimeCfg *runtimeConfiguration) (*model.Channel, *model.User, *model.Team, bool, error) {
+func (p *Plugin) prepareAnalysisContext(post *model.Post) (*model.Channel, *model.User, *model.Team, error) {
 	channel, appErr := p.API.GetChannel(post.ChannelId)
 	if appErr != nil || channel == nil {
-		return nil, nil, nil, false, appErr
+		return nil, nil, nil, appErr
 	}
 
 	user, appErr := p.API.GetUser(post.UserId)
 	if appErr != nil || user == nil {
-		return nil, nil, nil, false, appErr
+		return nil, nil, nil, appErr
 	}
 
 	var team *model.Team
@@ -126,10 +128,10 @@ func (p *Plugin) prepareAnalysisContext(post *model.Post, runtimeCfg *runtimeCon
 		}
 	}
 
-	return channel, user, team, isEligibleForAnalysis(post, channel, user, runtimeCfg), nil
+	return channel, user, team, nil
 }
 
-func isEligibleForAnalysis(post *model.Post, channel *model.Channel, user *model.User, runtimeCfg *runtimeConfiguration) bool {
+func isEligibleForAnalysis(post *model.Post, channel *model.Channel, user *model.User, runtimeCfg *runtimeConfiguration, isBotRequest bool) bool {
 	if post == nil || channel == nil || user == nil || runtimeCfg == nil {
 		return false
 	}
@@ -164,9 +166,9 @@ func isEligibleForAnalysis(post *model.Post, channel *model.Channel, user *model
 	case model.ChannelTypePrivate:
 		return scope.IncludePrivateChan
 	case model.ChannelTypeDirect:
-		return scope.IncludeDirectChan
+		return scope.IncludeDirectChan || isBotRequest
 	case model.ChannelTypeGroup:
-		return scope.IncludeGroupChan
+		return scope.IncludeGroupChan || isBotRequest
 	default:
 		return false
 	}

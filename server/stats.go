@@ -615,14 +615,14 @@ func buildMessageDetails(records []analyzedMessageRecord, runtimeCfg *runtimeCon
 	}
 
 	sort.Slice(rows, func(i, j int) bool {
-		if rows[i].UrgencyScore == rows[j].UrgencyScore {
-			return rows[i].CreatedAt > rows[j].CreatedAt
+		if rows[i].CreatedAt == rows[j].CreatedAt {
+			return rows[i].UrgencyScore > rows[j].UrgencyScore
 		}
-		return rows[i].UrgencyScore > rows[j].UrgencyScore
+		return rows[i].CreatedAt > rows[j].CreatedAt
 	})
 
-	if len(rows) > 40 {
-		return rows[:40]
+	if len(rows) > 100 {
+		return rows[:100]
 	}
 	return rows
 }

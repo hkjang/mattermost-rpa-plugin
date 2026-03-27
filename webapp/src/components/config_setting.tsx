@@ -224,6 +224,8 @@ export default function ConfigSetting(props: CustomSettingProps) {
                     <Multi label='제외 채널' disabled={disabled} options={catalog.channels.map((item) => ({label: `${item.team_name || '-'} / ${item.display_name}`, value: item.id}))} value={config.scope.excluded_channel_ids} onChange={(value) => updateScope('excluded_channel_ids', value)}/>
                     <Check label='공개 채널 포함' checked={config.scope.include_public_channel} onChange={(value) => updateScope('include_public_channel', value)}/>
                     <Check label='비공개 채널 포함' checked={config.scope.include_private_channel} onChange={(value) => updateScope('include_private_channel', value)}/>
+                    <Check label='DM 포함' checked={config.scope.include_direct_channel} onChange={(value) => updateScope('include_direct_channel', value)}/>
+                    <Check label='그룹 DM 포함' checked={config.scope.include_group_channel} onChange={(value) => updateScope('include_group_channel', value)}/>
                     <Check label='스레드 포함' checked={config.scope.include_threads} onChange={(value) => updateScope('include_threads', value)}/>
                     <Check label='봇 메시지 제외' checked={config.scope.exclude_bot_messages} onChange={(value) => updateScope('exclude_bot_messages', value)}/>
                     <Check label='시스템 메시지 제외' checked={config.scope.exclude_system_messages} onChange={(value) => updateScope('exclude_system_messages', value)}/>
