@@ -1,0 +1,21 @@
+bin/
+dist/
+package-temp/
+build/bin/
+server/dist/
+webapp/dist/
+webapp/node_modules/
+/.gocache/
+/.gopath/
+/.npm-cache/
+webapp/src/manifest.ts
+server/manifest.go
+
+# Mac
+.DS_Store
+
+# Jetbrains
+.idea/
+
+# VS Code
+.vscode
