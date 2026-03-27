@@ -5,6 +5,7 @@ build/bin/
 server/dist/
 webapp/dist/
 webapp/node_modules/
+webapp/.npm-cache/
 /.gocache/
 /.gopath/
 /.npm-cache/
