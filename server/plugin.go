@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"sync"
 	"time"
@@ -21,6 +22,10 @@ type Plugin struct {
 
 	analyticsLock sync.Mutex
 }
+
+type requestContextKey string
+
+const pluginContextKey requestContextKey = "plugin-context"
 
 func (p *Plugin) OnActivate() error {
 	p.client = pluginapi.NewClient(p.API, p.Driver)
@@ -44,6 +49,9 @@ func (p *Plugin) OnDeactivate() error {
 	return nil
 }
 
-func (p *Plugin) ServeHTTP(_ *plugin.Context, w http.ResponseWriter, r *http.Request) {
+func (p *Plugin) ServeHTTP(c *plugin.Context, w http.ResponseWriter, r *http.Request) {
+	if c != nil {
+		r = r.WithContext(context.WithValue(r.Context(), pluginContextKey, c))
+	}
 	p.router.ServeHTTP(w, r)
 }

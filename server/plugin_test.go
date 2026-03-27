@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/mattermost/mattermost/server/public/plugin"
+	"github.com/mattermost/mattermost/server/public/plugin/plugintest"
 	"github.com/stretchr/testify/require"
 )
 
@@ -90,12 +94,44 @@ func TestDefaultDictionaryEntriesContainRequestedKeywords(t *testing.T) {
 		"ec2", "bigquery", "blob", "api",
 		"계정 잠금", "접근 요청", "cpu 사용량", "urgent", "root cause",
 		"etl", "audit", "ssl", "terraform", "automation",
+		"llm", "prompt", "rag", "embedding", "vllm", "mlops", "gpu",
+		"신용등급", "아웃룩", "등급위원회", "회사채", "abcp", "부동산pf", "감사보고서", "금감원",
+		"회원사 문의", "보완자료", "평가 일정", "보고서 송부", "회원사 포털", "평가 수수료", "정정 요청",
 	}
 
 	for _, keyword := range required {
 		_, ok := keywordSet[strings.ToLower(keyword)]
 		require.Truef(t, ok, "expected predefined keyword %q to exist", keyword)
 	}
+}
+
+func TestRequestUserIDFallsBackToSession(t *testing.T) {
+	api := &plugintest.API{}
+	api.On("GetSession", "session-123").Return(&model.Session{UserId: "admin-user"}, (*model.AppError)(nil)).Once()
+
+	p := &Plugin{}
+	p.SetAPI(api)
+
+	req := httptest.NewRequest("POST", "/api/v1/reindex", nil)
+	req = req.WithContext(context.WithValue(req.Context(), pluginContextKey, &plugin.Context{SessionId: "session-123"}))
+
+	require.Equal(t, "admin-user", p.requestUserID(req))
+	api.AssertExpectations(t)
+}
+
+func TestRequireSystemAdminUsesSessionFallback(t *testing.T) {
+	api := &plugintest.API{}
+	api.On("GetSession", "session-123").Return(&model.Session{UserId: "admin-user"}, (*model.AppError)(nil)).Once()
+	api.On("HasPermissionTo", "admin-user", model.PermissionManageSystem).Return(true).Once()
+
+	p := &Plugin{}
+	p.SetAPI(api)
+
+	req := httptest.NewRequest("POST", "/api/v1/reindex", nil)
+	req = req.WithContext(context.WithValue(req.Context(), pluginContextKey, &plugin.Context{SessionId: "session-123"}))
+
+	require.NoError(t, p.requireSystemAdmin(req))
+	api.AssertExpectations(t)
 }
 
 func mockChannel(id, name, displayName, teamID string) *model.Channel {

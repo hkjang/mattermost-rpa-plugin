@@ -11,6 +11,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/mattermost/mattermost/server/public/model"
+	"github.com/mattermost/mattermost/server/public/plugin"
 )
 
 type pluginStatusResponse struct {
@@ -74,7 +75,7 @@ func (p *Plugin) handleAdminConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := r.Header.Get("Mattermost-User-ID")
+	userID := p.requestUserID(r)
 	writeJSON(w, http.StatusOK, adminConfigResponse{
 		Config:  stored,
 		Source:  source,
@@ -137,7 +138,7 @@ func (p *Plugin) handleReindex(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userID := r.Header.Get("Mattermost-User-ID")
+	userID := p.requestUserID(r)
 	response, err := p.runReindex(userID, request)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err)
@@ -228,14 +229,37 @@ func (p *Plugin) currentStatus(source string) pluginStatusResponse {
 }
 
 func (p *Plugin) requireSystemAdmin(r *http.Request) error {
-	userID := r.Header.Get("Mattermost-User-ID")
+	userID := p.requestUserID(r)
 	if userID == "" {
 		return errors.New("not authorized")
 	}
-	if !p.client.User.HasPermissionTo(userID, model.PermissionManageSystem) {
+	if !p.API.HasPermissionTo(userID, model.PermissionManageSystem) {
 		return errors.New("only system administrators can access this endpoint")
 	}
 	return nil
+}
+
+func (p *Plugin) requestUserID(r *http.Request) string {
+	if r == nil {
+		return ""
+	}
+
+	userID := strings.TrimSpace(r.Header.Get("Mattermost-User-ID"))
+	if userID != "" {
+		return userID
+	}
+
+	pluginCtx, ok := r.Context().Value(pluginContextKey).(*plugin.Context)
+	if !ok || pluginCtx == nil || pluginCtx.SessionId == "" {
+		return ""
+	}
+
+	session, appErr := p.API.GetSession(pluginCtx.SessionId)
+	if appErr != nil || session == nil {
+		return ""
+	}
+
+	return strings.TrimSpace(session.UserId)
 }
 
 func writeJSON(w http.ResponseWriter, statusCode int, payload any) {

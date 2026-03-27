@@ -240,6 +240,7 @@ function pluginURL(path: string) {
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
     const response = await fetch(pluginURL(path), {
         ...options,
+        credentials: 'same-origin',
         headers: {
             'Content-Type': 'application/json',
             ...(options.headers || {}),
