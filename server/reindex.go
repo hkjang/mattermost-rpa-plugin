@@ -92,7 +92,8 @@ func (p *Plugin) runReindex(userID string, request reindexRequest) (reindexRespo
 				continue
 			}
 
-			record, ok := analyzePostRecord(post, channel, user, team, runtimeCfg)
+			isBotRequest, botTargetName := p.detectBotRequest(post, channel, user)
+			record, ok := analyzePostRecord(post, channel, user, team, runtimeCfg, isBotRequest, botTargetName)
 			p.analyticsLock.Lock()
 			if ok {
 				_ = p.upsertMessageRecordLocked(record)

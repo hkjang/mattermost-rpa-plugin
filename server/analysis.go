@@ -37,6 +37,8 @@ type analyzedMessageRecord struct {
 	UpdatedAt          int64          `json:"updated_at"`
 	IsThreadReply      bool           `json:"is_thread_reply"`
 	IsBotMessage       bool           `json:"is_bot_message"`
+	IsBotRequest       bool           `json:"is_bot_request"`
+	BotTargetName      string         `json:"bot_target_name,omitempty"`
 	Message            string         `json:"message"`
 	MessagePreview     string         `json:"message_preview"`
 	Tokens             []string       `json:"tokens"`
@@ -83,7 +85,8 @@ func (p *Plugin) processPostUpsert(post *model.Post) {
 		return
 	}
 
-	record, ok := analyzePostRecord(post, channel, user, team, runtimeCfg)
+	isBotRequest, botTargetName := p.detectBotRequest(post, channel, user)
+	record, ok := analyzePostRecord(post, channel, user, team, runtimeCfg, isBotRequest, botTargetName)
 	if !ok {
 		_ = p.removeMessageRecordLocked(post.Id, time.UnixMilli(post.CreateAt))
 		return
@@ -168,7 +171,7 @@ func isEligibleForAnalysis(post *model.Post, channel *model.Channel, user *model
 	}
 }
 
-func analyzePostRecord(post *model.Post, channel *model.Channel, user *model.User, team *model.Team, runtimeCfg *runtimeConfiguration) (analyzedMessageRecord, bool) {
+func analyzePostRecord(post *model.Post, channel *model.Channel, user *model.User, team *model.Team, runtimeCfg *runtimeConfiguration, isBotRequest bool, botTargetName string) (analyzedMessageRecord, bool) {
 	message := cleanMessageText(post.Message)
 	if message == "" {
 		return analyzedMessageRecord{}, false
@@ -214,6 +217,8 @@ func analyzePostRecord(post *model.Post, channel *model.Channel, user *model.Use
 		UpdatedAt:          maxInt64(post.UpdateAt, post.CreateAt),
 		IsThreadReply:      strings.TrimSpace(post.RootId) != "",
 		IsBotMessage:       user.IsBot,
+		IsBotRequest:       isBotRequest,
+		BotTargetName:      strings.TrimSpace(botTargetName),
 		Message:            trimForStorage(message, 2000),
 		MessagePreview:     trimForStorage(message, 240),
 		Tokens:             tokens,
@@ -224,6 +229,41 @@ func analyzePostRecord(post *model.Post, channel *model.Channel, user *model.Use
 		Sentiment:          sentiment,
 		Signals:            signals,
 	}, true
+}
+
+func (p *Plugin) detectBotRequest(post *model.Post, channel *model.Channel, author *model.User) (bool, string) {
+	if p == nil || post == nil || channel == nil || author == nil || author.IsBot {
+		return false, ""
+	}
+	if channel.Type != model.ChannelTypeDirect {
+		return false, ""
+	}
+
+	otherUserID := directChannelOtherUserID(channel.Name, author.Id)
+	if otherUserID == "" {
+		return false, ""
+	}
+
+	targetUser, appErr := p.API.GetUser(otherUserID)
+	if appErr != nil || targetUser == nil || !targetUser.IsBot {
+		return false, ""
+	}
+
+	return true, firstNonEmpty(targetUser.Username, targetUser.Nickname, targetUser.Id)
+}
+
+func directChannelOtherUserID(channelName, authorID string) string {
+	parts := strings.Split(strings.TrimSpace(channelName), "__")
+	if len(parts) != 2 {
+		return ""
+	}
+	if parts[0] == authorID {
+		return parts[1]
+	}
+	if parts[1] == authorID {
+		return parts[0]
+	}
+	return ""
 }
 
 func cleanMessageText(message string) string {

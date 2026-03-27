@@ -4,7 +4,7 @@ import {
 } from './config_setting';
 
 describe('config setting drafts', () => {
-    test('normalizeAdminConfig preserves local IDs for matching dictionaries', () => {
+    test('normalizeAdminConfig preserves local IDs for matching alert rules', () => {
         const previous = {
             scope: {
                 included_team_ids: [],
@@ -27,16 +27,6 @@ describe('config setting drafts', () => {
                 anonymize_authors: false,
                 reindex_batch_size: 200,
             },
-            dictionaries: [{
-                id: 'dict-outage',
-                major_category: '장애',
-                sub_category: '시스템 장애',
-                purpose: '장애 탐지',
-                keywords: ['다운'],
-                enabled: true,
-                local_id: 'dict-local-1',
-            }],
-            stopwords: [],
             alert_rules: [{
                 id: 'alert-1',
                 name: '장애 급증',
@@ -65,7 +55,7 @@ describe('config setting drafts', () => {
                 keywords: ['다운', '응답없음'],
                 enabled: true,
             }],
-            stopwords: [],
+            stopwords: ['그리고'],
             alert_rules: [{
                 id: 'alert-1',
                 name: '장애 급증',
@@ -79,12 +69,11 @@ describe('config setting drafts', () => {
             ai: previous.ai,
         }, previous);
 
-        expect(next.dictionaries[0].local_id).toBe('dict-local-1');
         expect(next.alert_rules[0].local_id).toBe('rule-local-1');
     });
 
-    test('parseStoredConfigValue keeps local IDs when config is echoed back through props', () => {
-        const previous = normalizeAdminConfig({
+    test('parseStoredConfigValue ignores predefined dictionary payloads in draft state', () => {
+        const result = parseStoredConfigValue(JSON.stringify({
             scope: {
                 included_team_ids: [],
                 included_channel_ids: [],
@@ -120,18 +109,11 @@ describe('config setting drafts', () => {
                 vllm_url: '',
                 vllm_key: '',
             },
-        });
-
-        const result = parseStoredConfigValue(JSON.stringify({
-            scope: previous.scope,
-            operations: previous.operations,
-            dictionaries: previous.dictionaries.map(({local_id, ...item}) => item),
-            stopwords: previous.stopwords,
-            alert_rules: [],
-            ai: previous.ai,
-        }), previous);
+        }));
 
         expect(result.ok).toBe(true);
-        expect(result.config.dictionaries[0].local_id).toBe(previous.dictionaries[0].local_id);
+        expect(result.config).not.toHaveProperty('dictionaries');
+        expect(result.config).not.toHaveProperty('stopwords');
+        expect(result.config.alert_rules).toEqual([]);
     });
 });

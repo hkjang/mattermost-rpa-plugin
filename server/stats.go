@@ -591,6 +591,10 @@ func buildAlerts(records []analyzedMessageRecord, toUTC time.Time, runtimeCfg *r
 func buildMessageDetails(records []analyzedMessageRecord, runtimeCfg *runtimeConfiguration) []messageDetail {
 	rows := make([]messageDetail, 0, len(records))
 	for _, record := range records {
+		if !record.IsBotRequest {
+			continue
+		}
+
 		author := record.AuthorDisplayName
 		if runtimeCfg != nil && runtimeCfg.Operations.AnonymizeAuthors {
 			author = anonymizeAuthor(record.AuthorDisplayName, record.AuthorUserID)

@@ -77,7 +77,7 @@ func (p *Plugin) handleAdminConfig(w http.ResponseWriter, r *http.Request) {
 
 	userID := p.requestUserID(r)
 	writeJSON(w, http.StatusOK, adminConfigResponse{
-		Config:  stored,
+		Config:  stored.adminEditableConfig(),
 		Source:  source,
 		Status:  p.currentStatus(source),
 		Catalog: p.buildAdminLookupCatalog(userID),
@@ -244,7 +244,10 @@ func (p *Plugin) requestUserID(r *http.Request) string {
 		return ""
 	}
 
-	userID := strings.TrimSpace(r.Header.Get("Mattermost-User-ID"))
+	userID := strings.TrimSpace(r.Header.Get("Mattermost-User-Id"))
+	if userID == "" {
+		userID = strings.TrimSpace(r.Header.Get("Mattermost-User-ID"))
+	}
 	if userID != "" {
 		return userID
 	}

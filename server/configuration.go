@@ -120,6 +120,12 @@ func defaultStoredPluginConfig() storedPluginConfig {
 	}
 }
 
+func (c storedPluginConfig) adminEditableConfig() storedPluginConfig {
+	c.Dictionaries = nil
+	c.Stopwords = nil
+	return c
+}
+
 func parseStoredPluginConfig(raw string) (storedPluginConfig, error) {
 	cfg := defaultStoredPluginConfig()
 	if strings.TrimSpace(raw) == "" {
@@ -501,7 +507,7 @@ func defaultDictionaryEntries() []DictionaryEntry {
 		{"AI", "MLOps", "모델 운영 자동화", []string{"mlops", "model registry", "feature store", "drift", "data drift", "model drift", "hallucination", "guardrail", "eval", "evaluation", "observability", "모델 모니터링"}},
 		{"AI", "에이전트", "AI 자동화", []string{"agent", "ai agent", "tool calling", "function calling", "planner", "reasoning", "multi-agent", "workflow agent", "agent loop"}},
 		{"AI", "GPU 운영", "가속기 인프라", []string{"gpu", "cuda", "vram", "tensor rt", "tensorrt", "nvidia", "a100", "h100", "gpu memory", "gpu oom", "accelerator"}},
-		{"보안운영", "감사", "규정", []string{"audit", "로그", "감사", "감사 로그", "compliance", "추적"}},
+		{"보안운영", "감사", "규정", []string{"audit", "감사 로그", "audit log", "compliance", "추적", "감사 추적", "감사 대응"}},
 		{"보안운영", "정책", "통제", []string{"policy", "정책", "보안 정책", "가이드라인", "통제", "차단 정책"}},
 		{"보안운영", "인증서", "보안", []string{"cert", "SSL", "ssl", "TLS", "tls", "인증서 만료", "certificate"}},
 		{"보안운영", "키 관리", "민감정보", []string{"key", "secret", "비밀키", "암호키", "credential", "vault"}},

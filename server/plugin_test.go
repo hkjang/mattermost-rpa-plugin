@@ -58,12 +58,53 @@ func TestAnalyzePostRecord(t *testing.T) {
 		mockUser("user-1", "alice", false),
 		nil,
 		runtimeCfg,
+		false,
+		"",
 	)
 	require.True(t, ok)
 	require.Equal(t, "post-1", record.MessageID)
 	require.Contains(t, record.MajorCategories, "장애")
 	require.NotEmpty(t, record.KeywordMatches)
 	require.Greater(t, record.UrgencyScore, 0.0)
+}
+
+func TestAnalyzePostRecordSkipsGratitudePhrase(t *testing.T) {
+	runtimeCfg, err := defaultStoredPluginConfig().normalize()
+	require.NoError(t, err)
+
+	record, ok := analyzePostRecord(
+		&model.Post{
+			Id:        "post-thanks",
+			Message:   "확인 감사합니다",
+			ChannelId: "channel-1",
+			CreateAt:  time.Now().UnixMilli(),
+		},
+		mockChannel("channel-1", "ops", "운영", "team-1"),
+		mockUser("user-1", "alice", false),
+		nil,
+		runtimeCfg,
+		false,
+		"",
+	)
+	require.False(t, ok)
+	require.Empty(t, record.KeywordMatches)
+}
+
+func TestDetectBotRequestInDirectMessage(t *testing.T) {
+	api := &plugintest.API{}
+	api.On("GetUser", "bot-user").Return(&model.User{Id: "bot-user", Username: "helper-bot", IsBot: true}, (*model.AppError)(nil)).Once()
+
+	p := &Plugin{}
+	p.SetAPI(api)
+
+	isBotRequest, botTargetName := p.detectBotRequest(
+		&model.Post{Id: "post-1", ChannelId: "dm-1", UserId: "user-1", Message: "배포 상태 확인해줘"},
+		&model.Channel{Id: "dm-1", Name: "bot-user__user-1", Type: model.ChannelTypeDirect},
+		mockUser("user-1", "alice", false),
+	)
+	require.True(t, isBotRequest)
+	require.Equal(t, "helper-bot", botTargetName)
+	api.AssertExpectations(t)
 }
 
 func TestBuildStatsRange(t *testing.T) {
@@ -105,6 +146,13 @@ func TestDefaultDictionaryEntriesContainRequestedKeywords(t *testing.T) {
 	}
 }
 
+func TestAdminEditableConfigStripsPredefinedKeywordPayload(t *testing.T) {
+	cfg := defaultStoredPluginConfig().adminEditableConfig()
+	require.Empty(t, cfg.Dictionaries)
+	require.Empty(t, cfg.Stopwords)
+	require.NotEmpty(t, cfg.AlertRules)
+}
+
 func TestRequestUserIDFallsBackToSession(t *testing.T) {
 	api := &plugintest.API{}
 	api.On("GetSession", "session-123").Return(&model.Session{UserId: "admin-user"}, (*model.AppError)(nil)).Once()
@@ -117,6 +165,15 @@ func TestRequestUserIDFallsBackToSession(t *testing.T) {
 
 	require.Equal(t, "admin-user", p.requestUserID(req))
 	api.AssertExpectations(t)
+}
+
+func TestRequestUserIDReadsMattermostHeader(t *testing.T) {
+	p := &Plugin{}
+
+	req := httptest.NewRequest("POST", "/api/v1/reindex", nil)
+	req.Header.Set("Mattermost-User-Id", "admin-user")
+
+	require.Equal(t, "admin-user", p.requestUserID(req))
 }
 
 func TestRequireSystemAdminUsesSessionFallback(t *testing.T) {

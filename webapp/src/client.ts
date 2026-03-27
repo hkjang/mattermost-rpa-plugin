@@ -237,12 +237,33 @@ function pluginURL(path: string) {
     return `${base}/plugins/${manifest.id}/api/v1${path}`;
 }
 
+function getCookie(name: string) {
+    if (typeof document === 'undefined' || typeof document.cookie !== 'string') {
+        return '';
+    }
+
+    const prefix = `${name}=`;
+    for (const part of document.cookie.split(';')) {
+        const value = part.trim();
+        if (value.startsWith(prefix)) {
+            return value.slice(prefix.length);
+        }
+    }
+
+    return '';
+}
+
 async function request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    const method = (options.method || 'GET').toUpperCase();
+    const csrfToken = getCookie('MMCSRF');
     const response = await fetch(pluginURL(path), {
         ...options,
-        credentials: 'same-origin',
+        credentials: 'include',
         headers: {
+            Accept: 'application/json',
             'Content-Type': 'application/json',
+            'X-Requested-With': 'XMLHttpRequest',
+            ...(method !== 'GET' && csrfToken ? {'X-CSRF-Token': csrfToken} : {}),
             ...(options.headers || {}),
         },
     });
