@@ -107,6 +107,28 @@ func TestDetectBotRequestInDirectMessage(t *testing.T) {
 	api.AssertExpectations(t)
 }
 
+func TestDetectBotRequestByMention(t *testing.T) {
+	api := &plugintest.API{}
+	api.On("GetUserByUsername", "mattermostbot").Return(&model.User{Id: "bot-user", Username: "mattermostbot", IsBot: true}, (*model.AppError)(nil)).Once()
+
+	p := &Plugin{}
+	p.SetAPI(api)
+
+	isBotRequest, botTargetName := p.detectBotRequest(
+		&model.Post{Id: "post-2", ChannelId: "channel-1", UserId: "user-1", Message: "@mattermostbot dns 설정 방법 알려줘"},
+		mockChannel("channel-1", "ops", "운영", "team-1"),
+		mockUser("user-1", "alice", false),
+	)
+	require.True(t, isBotRequest)
+	require.Equal(t, "mattermostbot", botTargetName)
+	api.AssertExpectations(t)
+}
+
+func TestExtractMentionedUsernamesSkipsReservedMentions(t *testing.T) {
+	usernames := extractMentionedUsernames("안녕하세요 @mattermostbot @channel @all @helper.bot")
+	require.Equal(t, []string{"mattermostbot", "helper.bot"}, usernames)
+}
+
 func TestBuildStatsRange(t *testing.T) {
 	rangeValue, fromUTC, toUTC, err := buildStatsRange("2026-03-20", "2026-03-21", 540)
 	require.NoError(t, err)

@@ -12,6 +12,7 @@ import (
 )
 
 var tokenPattern = regexp.MustCompile(`[\p{Hangul}\p{L}\p{N}][\p{Hangul}\p{L}\p{N}._/-]*`)
+var mentionPattern = regexp.MustCompile(`(?i)(?:^|[^a-z0-9._-])@([a-z0-9][a-z0-9._-]*)`)
 
 type keywordMatch struct {
 	Keyword       string `json:"keyword"`
@@ -235,21 +236,75 @@ func (p *Plugin) detectBotRequest(post *model.Post, channel *model.Channel, auth
 	if p == nil || post == nil || channel == nil || author == nil || author.IsBot {
 		return false, ""
 	}
-	if channel.Type != model.ChannelTypeDirect {
-		return false, ""
+
+	if botTargetName, ok := p.detectBotRequestDirectTarget(channel, author.Id); ok {
+		return true, botTargetName
+	}
+	if botTargetName, ok := p.detectBotRequestMentionTarget(post.Message); ok {
+		return true, botTargetName
 	}
 
-	otherUserID := directChannelOtherUserID(channel.Name, author.Id)
+	return false, ""
+}
+
+func (p *Plugin) detectBotRequestDirectTarget(channel *model.Channel, authorID string) (string, bool) {
+	if p == nil || channel == nil || channel.Type != model.ChannelTypeDirect {
+		return "", false
+	}
+
+	otherUserID := directChannelOtherUserID(channel.Name, authorID)
 	if otherUserID == "" {
-		return false, ""
+		return "", false
 	}
 
 	targetUser, appErr := p.API.GetUser(otherUserID)
 	if appErr != nil || targetUser == nil || !targetUser.IsBot {
-		return false, ""
+		return "", false
 	}
 
-	return true, firstNonEmpty(targetUser.Username, targetUser.Nickname, targetUser.Id)
+	return firstNonEmpty(targetUser.Username, targetUser.Nickname, targetUser.Id), true
+}
+
+func (p *Plugin) detectBotRequestMentionTarget(message string) (string, bool) {
+	if p == nil || !strings.Contains(message, "@") {
+		return "", false
+	}
+
+	for _, username := range extractMentionedUsernames(message) {
+		targetUser, appErr := p.API.GetUserByUsername(username)
+		if appErr != nil || targetUser == nil || !targetUser.IsBot {
+			continue
+		}
+		return firstNonEmpty(targetUser.Username, targetUser.Nickname, targetUser.Id), true
+	}
+
+	return "", false
+}
+
+func extractMentionedUsernames(message string) []string {
+	matches := mentionPattern.FindAllStringSubmatch(strings.ToLower(message), -1)
+	if len(matches) == 0 {
+		return nil
+	}
+
+	result := make([]string, 0, len(matches))
+	seen := make(map[string]struct{}, len(matches))
+	for _, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		username := strings.TrimSpace(match[1])
+		if username == "" || username == "channel" || username == "all" || username == "here" {
+			continue
+		}
+		if _, ok := seen[username]; ok {
+			continue
+		}
+		seen[username] = struct{}{}
+		result = append(result, username)
+	}
+
+	return result
 }
 
 func directChannelOtherUserID(channelName, authorID string) string {
