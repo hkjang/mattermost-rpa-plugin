@@ -14,7 +14,7 @@ type CustomSettingProps = {
 
 type DraftDictionaryEntry = DictionaryEntry & {local_id: string};
 type DraftAlertRule = AlertRule & {local_id: string};
-type DraftPluginConfig = AdminPluginConfig & {
+type DraftPluginConfig = Omit<AdminPluginConfig, 'dictionaries'|'alert_rules'> & {
     dictionaries: DraftDictionaryEntry[];
     alert_rules: DraftAlertRule[];
 };
@@ -23,6 +23,7 @@ type FilterPreset = 'today'|'7d'|'30d'|'custom';
 const sectionStyle: React.CSSProperties = {background: 'var(--center-channel-bg)', border: '1px solid rgba(63,67,80,.12)', borderRadius: 18, display: 'grid', gap: 14, padding: 20};
 const gridStyle: React.CSSProperties = {display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))'};
 const fieldStyle: React.CSSProperties = {border: '1px solid rgba(63,67,80,.16)', borderRadius: 12, padding: '10px 12px', width: '100%'};
+const textareaStyle: React.CSSProperties = {...fieldStyle, minHeight: 120, resize: 'vertical'};
 const buttonStyle: React.CSSProperties = {background: 'var(--button-bg)', border: 'none', borderRadius: 999, color: 'var(--button-color)', cursor: 'pointer', fontSize: 13, fontWeight: 700, padding: '9px 14px'};
 const subtleButtonStyle: React.CSSProperties = {...buttonStyle, background: 'rgba(63,67,80,.08)', color: 'var(--center-channel-color)'};
 
